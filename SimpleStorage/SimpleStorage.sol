@@ -6,34 +6,28 @@ contract SimpleStorage {
     bool favouriteBool;
 
     struct People {
-        uint256 favouriteNumber;
         string name;
+        uint256 favouriteNumber;
     }
 
-    People[] internal people;
-    mapping(string => uint256) internal nameToFavouriteNumber;
-    mapping(uint256 => address) internal peopleToAddress;
-    mapping(address => uint256) internal addressToPeople;
+    People[] public people;
+    mapping(string => uint256) public nameToFavouriteNumber;
 
-    // function store(uint256 _favouriteNumber) public {
-    //     favouriteNumber = _favouriteNumber;
-    // }
-
-    function retrieveFavouriteNumber(string memory _name) public view returns(uint256) {
-        return nameToFavouriteNumber[_name];
+    function store(uint256 _favouriteNumber) public {
+        favouriteNumber = _favouriteNumber;
     }
 
-    function retrievePerson(address _user) public view returns(People memory) {
-        return people[addressToPeople[_user]];
+    function retrieve() public view returns(uint256) {
+        return favouriteNumber;
     }
 
     // memory - stored only during function execution and not written on chain
     // storage - non persistent, data written on chain
     function addPerson(string memory _name, uint256 _favouriteNumber) public {
-        people.push(People(_favouriteNumber, _name));
-        uint _id = people.length - 1;
+        people.push(People(_name, _favouriteNumber));
+        // uint _id = people.length - 1;
         // store and associate name to number in mapping
         nameToFavouriteNumber[_name] = _favouriteNumber;
-        peopleToAddress[_id] = msg.sender;
+        // peopleToAddress[_id] = msg.sender;
     }
 }
