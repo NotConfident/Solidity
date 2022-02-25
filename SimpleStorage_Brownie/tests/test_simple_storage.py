@@ -1,5 +1,8 @@
 from brownie import SimpleStorage, accounts
 
+# brownie test -k [test name] - test specific test only
+# brownie test --pdb - debug mode
+
 
 def test_Deploy():
     expected_value = 0
