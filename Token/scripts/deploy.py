@@ -13,7 +13,7 @@ def deploy_simple_storage():
     # account = accounts.add(config["wallets"]["from_key"])
 
     # Deploy Contract
-    token = GLDToken.deploy(1000000, {"from": account})
+    token = GLDToken.deploy(1000000000000000000000000, {"from": account})
 
 def get_account():
     if network.show_active() == "development":
