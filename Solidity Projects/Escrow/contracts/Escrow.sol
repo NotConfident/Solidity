@@ -44,7 +44,7 @@ contract Escrow {
         require(msg.sender == partyA || msg.sender == partyB);
     }
 
-    function initiateSwap() public payable {
+    function initiateSwap() internal payable {
         // check for vault status
         // start transferring
         vault_state = VAULT_STATE.CLOSED;
