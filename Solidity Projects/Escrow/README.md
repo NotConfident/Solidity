@@ -6,4 +6,4 @@ This project experiments with the idea of creating a time-based contract that lo
 
 Inspired from an attempted swap with that resulted in a high slippage. P2P attempts are unreliable as its solely based on trust (high risk, including untrusted middleman) 🥲
 
-
+An actual implementation of such feature by 1inch DEX - https://cointelegraph.com/news/1inch-network-adds-a-p2p-feature-to-facilitate-secure-crypto-swaps/amp
