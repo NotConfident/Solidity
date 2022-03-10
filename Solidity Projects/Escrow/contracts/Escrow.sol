@@ -49,14 +49,15 @@ contract Escrow {
         _;
     }
 
+    // DAI is used as POC for both param as LINK Token have some issues
     // Party B - 0xA04C70cab4129a79936C651107cEE1149fB3B6be
     // Token A - 0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735 (DAI)
-    // Token B - 0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b (USDC)
+    // Token B - 0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735 (DAI)
     // Amount A - 1000000000000000000 ($1)
     // Amount B - 1000000000000000000 ($1)
     // Time - 1000000000000000000 (Random)
-    // Party B                                    // DAI                                     // USDC                                    // Amount A         // Amount B         // Time
-    // 0x59CD8252063DeEa2eaF539645F697A58F9Bebe39,0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735,0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b,1000000000000000000,1000000000000000000,1000000000000000000
+    // Party B                                    // DAI                                     // DAI                                    // Amount A         // Amount B         // Time
+    // 0xA04C70cab4129a79936C651107cEE1149fB3B6be,0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735,0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735,1000000000000000000,1000000000000000000,1000000000000000000
     function startVault(
         address _partyB,
         address _tokenA,
@@ -83,13 +84,8 @@ contract Escrow {
         addressToPartyIndex[msg.sender] = 1;
     }
 
-    // // Approve manually on token sc instead of via this sc
-    // function approve(address _token, uint256 amount) public {
-    //     token = IERC20(_token);
-    //     token.approve(address(this), amount);
-    // }
-
-    // 0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735,1000000000000000000
+    // 0xc7AD46e0b8a400Bb3C915120d284AafbA8fc4735,1000000000000000000 (DAI)
+    // 0x01BE23585060835E02B77ef475b0Cc51aA1e0709,1000000000000000000 (LINK)
     function deposit(address _token, uint256 _amount) public payable {
         // check for vault status
         require(
@@ -116,6 +112,8 @@ contract Escrow {
         } else {
             userMappings.status = STATUS.DEPOSITED;
         }
+
+        checkDeposits();
     }
 
     function withdraw(address _token, uint256 _amount) public payable {
@@ -123,9 +121,40 @@ contract Escrow {
         // require(msg.sender == partyA || msg.sender == partyB);
     }
 
+    function checkDeposits() internal {
+        if (
+            party[0].status == STATUS.DEPOSITED &&
+            party[1].status == STATUS.DEPOSITED
+        ) {
+            initiateSwap();
+        }
+    }
+
+    // POC Done: https://rinkeby.etherscan.io/tx/0xa6234e3bf3d0e7ad16236cbba49762ba666d4a7261b0394c840419630ec4aaf2
     function initiateSwap() public payable {
         // check for vault status
+        require(vault_state == VAULT_STATE.OPEN);
+
+        Party storage partyA = party[0];
+        Party storage partyB = party[1];
+
         // start transferring
+        // Party A -> Party B
+        token = IERC20(partyA.token);
+        token.transferFrom(
+            address(this),
+            partyB.userAddress,
+            partyA.amountToDeposit
+        );
+
+        // Party B -> Party A
+        token = IERC20(partyB.token);
+        token.transferFrom(
+            address(this),
+            partyA.userAddress,
+            partyB.amountToDeposit
+        );
+
         vault_state = VAULT_STATE.COMPLETED;
     }
 
