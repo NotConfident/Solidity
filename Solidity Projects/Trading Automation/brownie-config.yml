@@ -8,4 +8,4 @@ compiler:
 
 dotenv: .env
 wallets:
-    from_key: ${PRIVATE_KEY}
+    from_key: ${HOT_WALLET}

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.6.12;
+pragma solidity ^0.8.0;
 
-import './IJoeRouter01.sol';
+import "./IJoeRouter01.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-abstract Trade is IJoeRouter01 {
+contract Trade is IJoeRouter01 {
     address public owner;
+    IERC20 private token;
 
-    constructor() public {
-        owner = msg.sender();
+    constructor() {
+        owner = msg.sender;
     }
 
     modifier onlyOwner() {
@@ -16,23 +18,28 @@ abstract Trade is IJoeRouter01 {
         _;
     }
 
-    function swap(
-        address token0,
-        address token1
-    ) external payable onlyOwner {
-        address[] memory path = new address[](2);
-        path[0] = token0; // 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7
-        path[1] = token1; // 0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB
+    function swapExactTokensForTokens(
+        uint256 amountIn,
+        uint256 amountOutMin,
+        address[] calldata path,
+        address to,
+        uint256 deadline
+    ) external onlyOwner returns (uint256[] memory amounts) {
+        address[] memory addressPath = new address[](2);
+        addressPath[0] = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7; // To remove as it can be supplied by calls
+        addressPath[1] = 0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB; // To remove as it can be supplied by calls
 
         address joeRouter = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
 
         IJoeRouter01 joe = IJoeRouter01(joeRouter);
+        token = IERC20(addressPath[0]);
+
         joe.swapExactTokensForTokens(
-            818941573487780114653,
-            759436430963140651977,
-            path,
-            0x15Fba290645CB27fad9DE41d3b0051CD978e8218,
-            1647311374819
+            amountIn,
+            amountOutMin,
+            addressPath,
+            to,
+            deadline
         );
     }
 }
