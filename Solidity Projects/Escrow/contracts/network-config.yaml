@@ -1,0 +1,10 @@
+development:
+    - name: Avalanche-Fork
+      networks:
+          - chainid: 1337
+            id: 43114
+            name: Avalanche (Fork)
+            host: 127.0.0.1
+            port: 8585
+            fork: https://speedy-nodes-nyc.moralis.io/913368044e5a40e5a1928384/avalanche/mainnet
+brownie networks add development Avalanche (Fork) host=http://127.0.0.1:7545 chainid=5777
