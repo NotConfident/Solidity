@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract Trade is IJoeRouter01 {
     address public owner;
     IERC20 private token;
+    address joeRouter = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
 
     constructor() {
         owner = msg.sender;
@@ -18,6 +19,17 @@ contract Trade is IJoeRouter01 {
         _;
     }
 
+    // Approve DEX to spend Token that is called from contract address
+    // Fund contract
+
+    function approve(address _token) public {
+        token = IERC20(_token);
+        token.approve(
+            joeRouter,
+            115792089237316195423570985008687907853269984665640564039457584007913129639935
+        ); // 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff /
+    }
+
     function swapExactTokensForTokens(
         uint256 amountIn,
         uint256 amountOutMin,
@@ -25,21 +37,22 @@ contract Trade is IJoeRouter01 {
         address to,
         uint256 deadline
     ) external onlyOwner returns (uint256[] memory amounts) {
-        address[] memory addressPath = new address[](2);
-        addressPath[0] = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7; // To remove as it can be supplied by calls
-        addressPath[1] = 0x49D5c2BdFfac6CE2BFdB6640F4F80f226bc10bAB; // To remove as it can be supplied by calls
-
-        address joeRouter = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
-
         IJoeRouter01 joe = IJoeRouter01(joeRouter);
-        token = IERC20(addressPath[0]);
-
         joe.swapExactTokensForTokens(
             amountIn,
             amountOutMin,
-            addressPath,
+            path,
             to,
             deadline
         );
+    }
+
+    function withdrawToken(address _token, uint256 _balance)
+        public
+        payable
+        onlyOwner
+    {
+        token = IERC20(_token);
+        token.transfer(owner, _balance);
     }
 }
