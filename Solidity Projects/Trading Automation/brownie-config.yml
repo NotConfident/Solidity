@@ -1,10 +1,12 @@
 dependencies:
     - OpenZeppelin/openzeppelin-contracts@4.5.0
+    - trufflesuite/truffle@5.5.4
 
 compiler:
     solc:
         remappings:
             - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.5.0"
+            - "@truffle=trufflesuite/truffle@5.5.4"
 
 dotenv: .env
 wallets:

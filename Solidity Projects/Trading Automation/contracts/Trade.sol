@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract Trade is IJoeRouter01 {
     address public owner;
     IERC20 private token;
-    address joeRouter = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
+    address public router = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
 
     constructor() {
         owner = msg.sender;
@@ -25,7 +25,7 @@ contract Trade is IJoeRouter01 {
     function approve(address _token) public {
         token = IERC20(_token);
         token.approve(
-            joeRouter,
+            router,
             115792089237316195423570985008687907853269984665640564039457584007913129639935
         ); // 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff /
     }
@@ -37,7 +37,7 @@ contract Trade is IJoeRouter01 {
         address to,
         uint256 deadline
     ) external onlyOwner returns (uint256[] memory amounts) {
-        IJoeRouter01 joe = IJoeRouter01(joeRouter);
+        IJoeRouter01 joe = IJoeRouter01(router);
         joe.swapExactTokensForTokens(
             amountIn,
             amountOutMin,
