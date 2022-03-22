@@ -37,6 +37,9 @@ contract Trade is IJoeRouter01 {
         address to,
         uint256 deadline
     ) external onlyOwner returns (uint256[] memory amounts) {
+        // 0x22d4002028f537599bE9f666d1c4Fa138522f9c8; // PTP
+        // 0x060556209E507d30f2167a101bFC6D256Ed2f3e1; // xPTP
+
         IJoeRouter01 joe = IJoeRouter01(router);
         joe.swapExactTokensForTokens(
             amountIn,
