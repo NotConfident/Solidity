@@ -7,6 +7,8 @@ import os, os.path, sys, json, requests, time
 
 load_dotenv()
 
+avalanche = f"https://api.avax.network/ext/bc/C/rpc"
+web3 = Web3(Web3.HTTPProvider(avalanche))
 weiToEther = 1000000000000000000
 
 def get_account():
@@ -17,8 +19,6 @@ def deployContract():
     return Trade.deploy({"from": account.address})
 
 def returnABI(_token):
-    avalanche = f"https://api.avax.network/ext/bc/C/rpc"
-    web3 = Web3(Web3.HTTPProvider(avalanche))
     abi = f'https://api.snowtrace.io/api?module=contract&action=getabi&address={_token}&apikey={os.getenv("ETHERSCAN_TOKEN")}'
     abi = requests.get(url = abi)
     abi = abi.json()
@@ -33,14 +33,14 @@ def returnABI(_token):
     Retrieve ABI
     Call Tokens's allowance function and assert 
 """
-# def test_Approve():
-#     trade = init()
-#     _token = "0x22d4002028f537599bE9f666d1c4Fa138522f9c8"
-#     trade.approve(_token)
+def test_Approve():
+    trade = deployContract()
+    token0 = os.getenv('PATH0')
 
-#     contract = returnContract(_token)
+    trade.approve(token0)
+    contract = web3.eth.contract(address = web3.toChecksumAddress(token0), abi=returnABI(token0))
 
-#     assert(contract.functions.allowance(f'{trade.owner()}', f'{trade.router()}').call() ==  79228162514264337593543950335)
+    assert(contract.functions.allowance(f'{trade.owner()}', f'{trade.router()}').call() == 79228162514264337593543950335)
 
 
 """ 
@@ -84,13 +84,10 @@ def test_Swap():
     assert(str(approve.status) == "Status.Confirmed")
 
     swapTokens = trade.swapExactTokensForTokens(token0Balance, (token0Balance * 0.995), path, trade.address, 1679899143)
-    print(swapTokens.events)
-    print(swapTokens.info())
     assert(str(swapTokens.status) == "Status.Confirmed")
 
     # Optional
     abi = returnABI(token1)
     contract = web3.eth.contract(address = web3.toChecksumAddress(token1), abi=abi)
     token1Balance = contract.functions.balanceOf(trade.address).call({'from': userAddress})
-    print(token0Balance, token1Balance)
     assert(token1Balance >= (token0Balance * 0.995))
