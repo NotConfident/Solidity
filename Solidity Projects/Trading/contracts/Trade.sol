@@ -2,7 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "./IJoeRouter01.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IERC20.sol";
+
+// import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Trade is IJoeRouter01 {
     address public owner;
@@ -36,7 +38,7 @@ contract Trade is IJoeRouter01 {
         address[] calldata path,
         address to,
         uint256 deadline
-    ) external onlyOwner returns (uint256[] memory amounts) {
+    ) public onlyOwner returns (uint256[] memory amounts) {
         // 0x22d4002028f537599bE9f666d1c4Fa138522f9c8; // PTP
         // 0x060556209E507d30f2167a101bFC6D256Ed2f3e1; // xPTP
 
@@ -48,6 +50,7 @@ contract Trade is IJoeRouter01 {
             to,
             deadline
         );
+        return amounts;
     }
 
     function withdrawToken(address _token, uint256 _balance)
