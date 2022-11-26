@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.16;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IERC20.sol";
 
 contract Rental {
     address public owner;
@@ -22,41 +22,61 @@ contract Rental {
         CANCELLED
     }
 
-    struct RenterListing { // To Rent
-        address tokenAddress; // Contract Address of the Token to used
-        uint256 tokenAmount; // Qty of the Token to be used
-        uint16 duration;
+    struct TenantListing { // To Rent (Non TA Holder)
+        uint256[] tokenAmount; // Qty of the Token to be used
+        uint16[] rentDuration;
         address userAddress;
         address delegatedWallet;
         LISTING_INFO status;
     }
 
-    mapping(uint256 => RenterListing) public renterListingsMap;
-    uint256 public nextListingID = 0;
-
-    // WRITE
-    // Create Listings - Want to Rent (Non TA Holder)
-    function createListing(address _token, uint256 tokenQty, uint16 rentDuration, address delegatedWallet) public {
-        RenterListing memory listing;
-
-        listing.tokenAddress = _token;
-        listing.tokenAmount = tokenQty;
-        listing.duration = rentDuration;
-        listing.userAddress = msg.sender;
-        listing.delegatedWallet = delegatedWallet != address(0) ? delegatedWallet : address(0);
-        listing.status = LISTING_INFO.OPEN;
-
-        renterListingsMap[nextListingID] = listing;
-        nextListingID += 1;
-
-        token = IERC20(_token);
-        token.approve(address(this), 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
-        token.transferFrom(msg.sender, address(this), tokenQty);
-        
+    struct LandLordListing { // To Rent Out (TA Holder)
+        uint256[] tokenAmount; // Qty of the Token to be used / slot
+        uint16[] rentDuration; // Duration of the slot to be rented out
+        address userAddress;
+        uint256 numSlots; // Number of slots to rent out
+        LISTING_INFO status;
     }
 
-    // Create Listings - Want to Rent Out (TA Holder)
-    
+    mapping(uint256 => LandLordListing) public landlordListingsMap;
+    mapping(uint256 => TenantListing) public tenantListingMap;
+    mapping(uint256 => bool) landlordListingsActive;
+    mapping(uint256 => bool) tenantListingsActive;
+
+    uint256 public landLordListingID = 0;
+    uint256 public tenantListingID = 0;
+
+    // WRITE
+    // Create Listings - Tenant, Want to Rent (Non TA Holder)
+    function createListingTenant(uint256[] calldata tokenQty, uint16[] calldata slotDuration, address delegateWallet) public {
+        TenantListing memory listing;
+
+        listing.tokenAmount = tokenQty;
+        listing.rentDuration = slotDuration;
+        listing.userAddress = msg.sender;
+        listing.delegatedWallet = delegateWallet != address(0) ? delegateWallet : address(0);
+        listing.status = LISTING_INFO.OPEN;
+
+        tenantListingMap[tenantListingID] = listing;
+        tenantListingsActive[tenantListingID] = true;
+        tenantListingID += 1;
+    }
+
+    // Create Listings - Landlord, Want to Rent Out (TA Holder)
+    // 1000000000000000000 - 1 ETH
+    function createListingLandlord(uint256[] calldata tokenQty, uint16[] calldata slotDuration, uint256 numSlots) public {
+        LandLordListing memory listing;
+
+        listing.tokenAmount = tokenQty;
+        listing.rentDuration = slotDuration;
+        listing.userAddress = msg.sender;
+        listing.numSlots = numSlots;
+        listing.status = LISTING_INFO.OPEN;
+
+        landlordListingsMap[landLordListingID] = listing;
+        landlordListingsActive[landLordListingID] = true;
+        landLordListingID += 1;
+    }
 
 
     // Accept Listings - Renting (Non TA Holder)
@@ -71,10 +91,13 @@ contract Rental {
 
 
     // READ
-    function viewListings(uint256 id) public view returns(RenterListing memory listing) {
-        return renterListingsMap[id];
+    function viewLandLordListings(uint256 id) public view returns(LandLordListing memory listing) {
+        return landlordListingsMap[id];
     }
 
+    function viewTenantsListings(uint256 id) public view returns(TenantListing memory listing) {
+        return tenantListingMap[id];
+    }
 
     // Withdrawal Functions
     function withdraw() public {
