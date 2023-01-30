@@ -1,15 +1,26 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+// Acc 1 - 0xE167D59eAFa3c9b771D1984c48Ec99EAF5E42291
+// Acc 2 - 0x327A5bC5f8096b10916E53BeD6a12532B515c6B9
+// Acc 3 - 0xB97F45084a0253beEF43B92aD033F13a758Ac6c4
+// 500000000000000 - 0.0005 ETH
+// 500000000000000,14,0x327A5bC5f8096b10916E53BeD6a12532B515c6B9
+pragma solidity ^0.8.0;
 
+import "./ERC721.sol";
+import "./IERC721.sol";
 import "./IERC20.sol";
 
 contract Rental {
     address public owner;
     IERC20 private token;
     
-    address AstroStakingControllerV3 = 0x1be7aC1d4974C9920E30E2DBC3a57F9e0e1c8EF2;
+    address AstroStakingControllerV3 = 0x8981961266A446722f332A8Fa3024471aeD484FF;
 
     event Received(address, uint256);
+
+    constructor() {
+        owner = msg.sender;
+    }
 
     modifier onlyOwner() { // For emergency cases that requires interference
         require(owner == msg.sender);
@@ -30,7 +41,9 @@ contract Rental {
         address userAddress;
         address delegatedWallet;
         address landlordAddress;
-        address reserveTimestamp;
+        uint256 reserveTimestamp;
+        bool refunded;
+        bool rentStatus; // True - Rented Successfully
         LISTING_INFO status;
     }
 
@@ -38,6 +51,11 @@ contract Rental {
         uint256 tokenAmount; // Qty of the Token to be used / slot
         uint16 rentDuration; // Duration of the slot to be rented out
         address userAddress;
+        address callerAddress;
+        address delegatedWallet;
+        uint256 highestBid;
+        bool rentStatus;
+        uint256 reserveTimestamp;
         LISTING_INFO status;
     }
 
@@ -49,8 +67,12 @@ contract Rental {
     uint256 public landLordListingID = 0;
     uint256 public tenantListingID = 0;
 
-    // WRITE
-    // Create Listings - Tenant, Want to Rent (Non TA Holder)
+    // **************************************
+    // *                                    *
+    // *               TENANT               *
+    // *                                    *
+    // **************************************
+    // Create Listings - Tenant, Want to Rent (Non TA Holder) ✅
     function createListingTenant(uint256 ethQty, uint16 slotDuration, address delegateWallet) public payable {
         TenantListing storage listing = tenantListingMap[tenantListingID];
 
@@ -58,34 +80,93 @@ contract Rental {
         listing.rentDuration = slotDuration;
         listing.userAddress = msg.sender;
         listing.delegatedWallet = delegateWallet;
-        // listing.status = LISTING_INFO.OPEN; // Default open upon creation
 
-        // tenantListingMap[tenantListingID] = listing; // Mapped on Line 53
         // tenantListingsActive[tenantListingID] = true;
 
-        tenantListingID += 1;
         require(msg.sender == tx.origin);
         require(msg.value == ethQty, "Ensure exact ETH is sent");
+        ++tenantListingID;
     }
 
-    // Create Listings - Landlord, Want to Rent Out (TA Holder)
-    // 1000000000000000000 - 1 ETH
+    // Cancel Tenant Listings - Tenant, Want to Rent (Non TA Holder) ✅
+    function cancelTenantListings(uint256 id) public {
+        TenantListing memory listing = tenantListingMap[id];
+
+        require(listing.userAddress == msg.sender, "Unauthorized user");
+        require(listing.status == LISTING_INFO.OPEN, "Invalid listing");
+
+        (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
+        (
+            bool isValid,
+            uint32 expiration
+        ) = abi.decode(result, (bool, uint32));
+        require(isValid == false, "Already rented");
+
+        require (listing.status == LISTING_INFO.OPEN || listing.status == LISTING_INFO.PAUSED, "Listing is not active");
+        require(listing.refunded == false);
+
+        payable(listing.userAddress).transfer(listing.tokenAmount);
+        listing.status = LISTING_INFO.CANCELLED;
+        listing.refunded = true;
+    }
+
+    // Bid for Landlord Listings - Tenant, Want to Rent (Non TA Holder) ✅
+    function bid(uint256 id, uint256 ethQty, address delegateWallet) public payable {
+        LandLordListing storage listing = landlordListingsMap[id];
+
+        require(listing.status == LISTING_INFO.OPEN, "Listing not active");
+        require(ethQty > listing.highestBid, "Bid must be higher than current bid");
+
+        address tenantWallet = listing.delegatedWallet;
+
+        // Verify if Landlord has Rented out pass to Tenant on chain
+        // Its not the Landlord interest to not collect deposit after renting out pass, no need to verify for it
+        (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", delegateWallet));
+        (
+            bool isValid,
+            uint32 expiration
+        ) = abi.decode(result, (bool, uint32));
+        require(isValid == false, "Already rented");
+
+        // Set current highest bidder address and ETH
+        require(msg.value == ethQty, "Ensure exact ETH is sent");
+
+        // Return ETH to the previous highest bidder
+        if (listing.callerAddress != address(0)) {
+            payable(listing.callerAddress).transfer(listing.highestBid);
+        }
+
+        listing.highestBid = ethQty;
+        listing.callerAddress = msg.sender;
+        listing.delegatedWallet = delegateWallet;
+    }
+
+    // Cancel Bids made by Tenant - Tenant, Want to Rent (Non TA Holder) ✅
+    function cancelBids(uint256[] calldata ids) public payable {
+        for(uint256 i = 0; i < ids.length; ++i) {
+            LandLordListing storage listing = landlordListingsMap[ids[i]];
+            require(listing.status == LISTING_INFO.OPEN, "Listing not active");
+            require(msg.sender == listing.callerAddress);
+            payable(listing.callerAddress).transfer(listing.highestBid);
+        }
+    }
+
+    // **************************************
+    // *                                    *
+    // *              Landlord              *
+    // *                                    *
+    // **************************************    
+    // Create Listings - Landlord, Want to Rent Out (TA Holder) ✅
     function createListingLandlord(uint256 ethQty, uint16 slotDuration) public {
         LandLordListing storage listing = landlordListingsMap[landLordListingID];
 
         listing.tokenAmount = ethQty;
         listing.rentDuration = slotDuration;
         listing.userAddress = msg.sender;
-        // listing.status = LISTING_INFO.OPEN; // Default open upon creation
+        listing.rentStatus = false;
 
-        // landlordListingsMap[landLordListingID] = listing; // Mapped on Line 71
-        // landlordListingsActive[landLordListingID] = true;
-        landLordListingID += 1;
+        ++landLordListingID;
     }
-
-
-    // Accept Listings - Tenant (Non TA Holder)
-
 
     // Reserve Tenant Listing
     // Due to technical limitations, its impossible to retrieve the address of the Landlord that
@@ -94,60 +175,95 @@ contract Rental {
 
     // Prevent another user from claiming the deposit of the landlord. Bots are able to snipe deposit of
     // tenant without this function
-    function reserveTenant(uint256 id) public {
-        require(reserveTimestamp <= block.timestamp, "Reserved by another landlord");
-        TenantListing memory listing;
+    function reserveTenantListing(uint256 id) public {
+        TenantListing storage listing = tenantListingMap[id];
+
+        // Verify if Landlord has Rented out pass to Tenant on chain
+        // Its not the Landlord interest to not collect deposit after renting out pass, no need to verify for it
+        // Prevent bots from monitoring mempool and calling reserveTenantListing
+        (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
+        (
+            bool isValid,
+            uint32 expiration
+        ) = abi.decode(result, (bool, uint32));
+        require(isValid == false, "Already rented");
+
+        // If current block timestamp is more than reserveTimestamp - Reservation expired.
+        require(block.timestamp >= listing.reserveTimestamp, "Reserved");
         listing.landlordAddress = msg.sender;
-        listing.reserveTimestamp = block.timestamp + 300; // 300 seconds = 5 mins
+        listing.reserveTimestamp = block.timestamp + 600; // 600 seconds = 10 mins
+        
+    }
+
+    // Accept Bid placed on Landlord listing by Tenants - Landlord (TA Holder)
+    function acceptTenantBid(uint256 id) public {
+        TenantListing storage listing = tenantListingMap[id];
+        require(listing.status == LISTING_INFO.OPEN, "Invalid listing");
+        require(listing.landlordAddress == msg.sender, "Unauthorized");
+
+        // Verify if Landlord has Rented out pass to Tenant on chain
+        // Its not the Landlord interest to not collect deposit after renting out pass, no need to verify for it
+        (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
+        (
+            bool isValid,
+            uint32 expiration
+        ) = abi.decode(result, (bool, uint32));
+        require(isValid == false, "Already rented");
+
+        require(block.timestamp >= listing.reserveTimestamp, "Reserved by another landlord"); // 600 seconds = 10 mins
+        require(listing.rentStatus == false); 
+
+        msg.sender.call{value: listing.tokenAmount};
+
+        listing.rentStatus = true;
+        listing.status = LISTING_INFO.COMPLETED;
     }
 
     // Accept Listings - Landlord (TA Holder) 
     // Use rentalRecipientStatus() to verify
     // Delegated wallet cannot have an active pass, TA have a check on that
-    function acceptListing(uint256 id) public payable {
-        TenantListing memory listing;
+    function acceptTenantListing(uint256 id) public payable {
+        TenantListing storage listing = tenantListingMap[id];
         
         require(listing.status == LISTING_INFO.OPEN, "Invalid listing");
-        
         require(listing.landlordAddress == msg.sender, "Unauthorized");
-        listing = tenantListingMap[id];
-
-        bool isValid;
-        bytes memory expiration;
-        address tenantWallet = listing.delegatedWallet;
 
         // Verify if Landlord has Rented out pass to Tenant on chain
         // Its not the Landlord interest to not collect deposit after renting out pass, no need to verify for it
-        (isValid, expiration) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", tenantWallet));
-        require(isValid == true, "Pass not rented out yet");
+        (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
+        (
+            bool isValid,
+            uint32 expiration
+        ) = abi.decode(result, (bool, uint32));
+        
+        require(isValid == true, "Pass isnt rented out yet");
+        require(listing.reserveTimestamp < block.timestamp + 600, "Expired"); // 600 seconds = 10 mins
 
-        uint256 convertedExpiration = uint256(bytes32(expiration));
-        require(convertedExpiration <= block.timestamp, "Expired");
-
-        msg.sender.call{value: listing.tokenAmount};
+        payable(listing.landlordAddress).transfer(listing.tokenAmount);
+        listing.rentStatus = true;
         listing.status = LISTING_INFO.COMPLETED;
     }
-
-    function cancelTenantListings(uint256 id) public {
-        TenantListing memory listing;
-
-        require(listing.userAddress == msg.sender);
-        require(listing.status == LISTING_INFO.OPEN, "Invalid listing");
-
-        listing = tenantListingMap[id];
-
-        bool isValid;
-        bytes memory expiration;
-        (isValid, expiration) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
-        require(isValid == false, "Already rented");
-
-        listing.status = LISTING_INFO.CLOSED;
-        listing.userAddress.call{value: listing.tokenAmount};
-    }
-
-    function forceCloseSuccessfulRent(uint256 id) public {
+    
+    // Anyone can call this function to release funds to respective parties
+    function forceCloseSuccessfulRent(uint256 id) public payable {
         // Forfeit 10% of the deposit by having another user to close out a successful trade if the
-        // landlord refuse to close by calling acceptListing() in order to save gas
+        // landlord refuse to close order to save gas
+        TenantListing storage listing = tenantListingMap[id];
+
+        // Verify if Landlord has Rented out pass to Tenant on chain
+        // Its not the Landlord interest to not collect deposit after renting out pass, no need to verify for it
+        // Prevent bots from monitoring mempool and calling reserveTenantListing
+        (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
+        (
+            bool isValid,
+            uint32 expiration
+        ) = abi.decode(result, (bool, uint32));
+        require(isValid == true, "Pass isnt rented out yet");
+        require(listing.landlordAddress != address(0));
+        require(block.timestamp > listing.reserveTimestamp + 3600); // 3600 - 1 Hour
+
+        payable(msg.sender).transfer((listing.tokenAmount / 100) * 10);
+        payable(listing.landlordAddress).transfer((listing.tokenAmount / 100) * 90);
     }
 
     // READ
@@ -177,7 +293,5 @@ contract Rental {
 }
 
 interface IRentalInterface {
-    function rentalRecipientStatus(
-        address recipient
-        ) external;
+    function rentalRecipientStatus(address recipient) external view returns(bool, uint256);
 }
