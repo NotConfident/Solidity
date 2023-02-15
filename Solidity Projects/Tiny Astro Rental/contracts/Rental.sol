@@ -98,15 +98,6 @@ contract Rental {
         require(listing.userAddress == msg.sender, "Unauthorized user");
         require(listing.status == LISTING_INFO.OPEN, "Invalid listing");
 
-        // (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
-        // (
-        //     bool isValid,
-        //     uint32 expiration
-        // ) = abi.decode(result, (bool, uint32));
-        // require(isValid == false, "Already rented");
-
-        // require (listing.status == LISTING_INFO.OPEN || listing.status == LISTING_INFO.PAUSED, "Listing is not active");
-        // require(listing.refunded == false);
         verifyNotRentedTenant(listing.delegatedWallet, listing);
 
         payable(listing.userAddress).transfer(listing.tokenAmount);
@@ -131,13 +122,6 @@ contract Rental {
 
         // Verify if Landlord has Rented out pass to Tenant on chain
         // Its not the Landlord interest to not collect deposit after renting out pass, no need to verify for it
-        // (bool success, bytes memory result) = AstroStakingControllerV3.call(abi.encodeWithSignature("rentalRecipientStatus(address)", listing.delegatedWallet));
-        // (
-        //     bool isValid,
-        //     uint32 expiration
-        // ) = abi.decode(result, (bool, uint32));
-        // require(isValid == false, "Already rented");
-
         verifyNotRentedLandlord(delegateWallet, listing);
 
         // Set current highest bidder address and ETH
